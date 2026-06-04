@@ -188,6 +188,7 @@ PRODUCT_PACKAGES += \
     init.qcom.sh \
     init.qti.kernel.rc \
     init.target.rc \
+    init.halium.rc \
     ueventd.oplus.rc \
     ueventd.qcom.rc
 

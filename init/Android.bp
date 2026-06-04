@@ -61,6 +61,13 @@ prebuilt_etc {
 }
 
 prebuilt_etc {
+    name: "init.halium.rc",
+    src: "init.halium.rc",
+    sub_dir: "init/hw",
+    vendor: true,
+}
+
+prebuilt_etc {
     name: "ueventd.oplus.rc",
     filename: "ueventd.rc",
     src: "ueventd.oplus.rc",

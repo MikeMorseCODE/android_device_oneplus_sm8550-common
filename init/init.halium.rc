@@ -1,0 +1,93 @@
+# init.halium.rc
+# Applied when the Android system boots inside the Droidian LXC container.
+# Droidian owns the display, audio, networking, and power management;
+# the Android container provides only the hardware HAL layer.
+
+on early-init
+    # Tell Android it is running inside a container
+    setprop ro.boot.container 1
+    setprop ro.halium.version 12
+
+on init
+    # Droidian's init (systemd) handles /data mounting; skip Android's check
+    setprop vold.decrypt trigger_default_encryption
+
+on post-fs-data
+    # Signal to Droidian that Android HALs are initialising
+    setprop halium.booting 1
+
+on property:sys.boot_completed=1
+    setprop halium.booting 0
+    setprop halium.running 1
+
+# ---------------------------------------------------------------------------
+# Services to DISABLE inside the container
+# ---------------------------------------------------------------------------
+
+# SurfaceFlinger - Droidian uses hwcomposer directly via libhybris
+on property:ro.boot.container=1
+    stop surfaceflinger
+
+# Droidian's PipeWire/PulseAudio owns the audio hardware
+on property:ro.boot.container=1
+    stop audioserver
+    stop audio-hal-aidl
+    stop vendor.audio-hal
+    stop vendor.audio-hal-aidl
+
+# Camera is accessed via libhybris from Droidian
+on property:ro.boot.container=1
+    stop cameraserver
+    stop vendor.camera-provider-2-4
+    stop vendor.camera-provider-2-5
+    stop vendor.camera-provider-2-7
+
+# Networking is owned by Droidian's NetworkManager / ofono
+on property:ro.boot.container=1
+    stop netd
+    stop wpa_supplicant
+    stop vendor.cnss_diag
+    stop vendor.imsqmidaemon
+    stop vendor.imsdatadaemon
+    stop vendor.ims_rtp_daemon
+    stop vendor.imsrcsservice
+    stop vendor.qcrild
+    stop vendor.qcrild2
+
+# vold: Droidian mounts all partitions; Android vold must not interfere
+on property:ro.boot.container=1
+    stop vold
+
+# Power/suspend: Droidian owns suspend policy
+on property:ro.boot.container=1
+    stop vendor.power-hal-aidl
+    stop android.hardware.power-service.pixel-libperfmgr
+    stop vendor.qti-power
+
+# Thermal - let Droidian's thermald handle this
+on property:ro.boot.container=1
+    stop vendor.thermal-engine
+    stop vendor.thermal-hal-2-0
+    stop vendor.thermalservice
+
+# Keymaster / Gatekeeper: not needed for Droidian (no Android lockscreen)
+on property:ro.boot.container=1
+    stop vendor.keymint-qti
+    stop vendor.gatekeeper-1-0
+
+# DRM / Widevine: unused in Droidian container context
+on property:ro.boot.container=1
+    stop vendor.drm-widevine
+    stop android.hardware.drm-service.clearkey
+
+# ---------------------------------------------------------------------------
+# Services to KEEP running (provide HALs to Droidian via binder)
+# ---------------------------------------------------------------------------
+# The following continue running and are accessed by libhybris:
+#   vendor.sensors-hal-multihal  - sensor HAL
+#   vendor.bluetooth-service-qti - Bluetooth HAL
+#   vendor.gnss-service           - GNSS HAL (via geoclue-hybris)
+#   vendor.vibrator-service       - haptics
+#   vendor.light-default-service  - LED/backlight
+#   vendor.nfc_hal_service        - NFC
+#   vendor.health-default          - battery info

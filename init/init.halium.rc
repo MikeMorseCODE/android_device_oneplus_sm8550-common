@@ -4,16 +4,14 @@
 # the Android container provides only the hardware HAL layer.
 
 on early-init
-    # Tell Android it is running inside a container
     setprop ro.boot.container 1
     setprop ro.halium.version 12
 
 on init
-    # Droidian's init (systemd) handles /data mounting; skip Android's check
+    # Droidian's init (systemd) handles /data mounting
     setprop vold.decrypt trigger_default_encryption
 
 on post-fs-data
-    # Signal to Droidian that Android HALs are initialising
     setprop halium.booting 1
 
 on property:sys.boot_completed=1
@@ -24,70 +22,73 @@ on property:sys.boot_completed=1
 # Services to DISABLE inside the container
 # ---------------------------------------------------------------------------
 
-# SurfaceFlinger - Droidian uses hwcomposer directly via libhybris
+# SurfaceFlinger — Phoc/Weston owns the DRM node
 on property:ro.boot.container=1
     stop surfaceflinger
 
-# Droidian's PipeWire/PulseAudio owns the audio hardware
+# Audio — Droidian's PipeWire/PulseAudio-hybris owns the hardware
 on property:ro.boot.container=1
     stop audioserver
     stop audio-hal-aidl
     stop vendor.audio-hal
     stop vendor.audio-hal-aidl
 
-# Camera is accessed via libhybris from Droidian
+# Camera — accessed via libhybris from Droidian userspace
 on property:ro.boot.container=1
     stop cameraserver
     stop vendor.camera-provider-2-4
     stop vendor.camera-provider-2-5
     stop vendor.camera-provider-2-7
 
-# Networking is owned by Droidian's NetworkManager / ofono
+# Android networking daemons — Droidian's NetworkManager owns WiFi and
+# routing; ofono owns the modem data path via qcrild (see below).
+# Do NOT stop qcrild here — ofono needs it to reach the modem.
 on property:ro.boot.container=1
     stop netd
     stop wpa_supplicant
     stop vendor.cnss_diag
-    stop vendor.imsqmidaemon
-    stop vendor.imsdatadaemon
-    stop vendor.ims_rtp_daemon
-    stop vendor.imsrcsservice
-    stop vendor.qcrild
-    stop vendor.qcrild2
 
-# vold: Droidian mounts all partitions; Android vold must not interfere
+# vold — Droidian mounts partitions
 on property:ro.boot.container=1
     stop vold
 
-# Power/suspend: Droidian owns suspend policy
+# Power/suspend — Droidian owns suspend policy
 on property:ro.boot.container=1
     stop vendor.power-hal-aidl
     stop android.hardware.power-service.pixel-libperfmgr
     stop vendor.qti-power
 
-# Thermal - let Droidian's thermald handle this
+# Thermal — Droidian's thermald handles this
 on property:ro.boot.container=1
     stop vendor.thermal-engine
     stop vendor.thermal-hal-2-0
     stop vendor.thermalservice
 
-# Keymaster / Gatekeeper: not needed for Droidian (no Android lockscreen)
+# Keymaster / Gatekeeper — not needed (no Android lockscreen)
 on property:ro.boot.container=1
     stop vendor.keymint-qti
     stop vendor.gatekeeper-1-0
 
-# DRM / Widevine: unused in Droidian container context
+# DRM / Widevine — unused in Droidian container context
 on property:ro.boot.container=1
     stop vendor.drm-widevine
     stop android.hardware.drm-service.clearkey
 
 # ---------------------------------------------------------------------------
-# Services to KEEP running (provide HALs to Droidian via binder)
+# Services to KEEP running (provide HALs to Droidian via binder/socket)
 # ---------------------------------------------------------------------------
-# The following continue running and are accessed by libhybris:
-#   vendor.sensors-hal-multihal  - sensor HAL
-#   vendor.bluetooth-service-qti - Bluetooth HAL
-#   vendor.gnss-service           - GNSS HAL (via geoclue-hybris)
-#   vendor.vibrator-service       - haptics
-#   vendor.light-default-service  - LED/backlight
-#   vendor.nfc_hal_service        - NFC
-#   vendor.health-default          - battery info
+#
+# vendor.qcrild / vendor.qcrild2
+#   KEEP: ofono connects to the modem through the RIL socket exposed by
+#   qcrild. Stopping it would break calls, SMS, and mobile data.
+#
+# vendor.imsqmidaemon / vendor.imsdatadaemon / vendor.ims_rtp_daemon
+#   KEEP: required for IMS registration and VoLTE/VoWiFi.
+#
+# vendor.sensors-hal-multihal   — sensor HAL (geoclue, compass, etc.)
+# vendor.bluetooth-service-qti  — Bluetooth HAL (BlueZ via hybris)
+# vendor.gnss-service            — GNSS HAL (geoclue-hybris)
+# vendor.vibrator-service        — haptics
+# vendor.light-default-service   — LED / display backlight
+# vendor.nfc_hal_service         — NFC
+# vendor.health-default           — battery info (upower)
